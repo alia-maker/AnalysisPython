@@ -1,16 +1,16 @@
-import warnings
-warnings.filterwarnings('ignore')
+# import warnings
+# warnings.filterwarnings('ignore')
 
 
-import matplotlib.pylab as plt
+# import matplotlib.pylab as plt
 
 # pylab inline
-from pyFTS.data import Enrollments
-
-fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[10,5])
-
-df = Enrollments.get_dataframe()
-plt.plot(df['Year'], df['Enrollments'])
+# from pyFTS.data import Enrollments
+#
+# fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[10,5])
+#
+# df = Enrollments.get_dataframe()
+# plt.plot(df['Year'], df['Enrollments'])
 
 data = df['Enrollments'].values
 

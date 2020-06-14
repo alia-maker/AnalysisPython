@@ -22,28 +22,39 @@ class HoltWinters:
         self.gamma = gamma
         self.n_preds = n_preds
         self.scaling_factor = scaling_factor
-
+        self.test_l = int(self.n_preds / 3 * 2)
     def initial_trend(self):
         sum = 0.0
         for i in range(self.slen):
-            sum += float(self.series[i+self.slen] - self.series[i]) / self.slen
+            if self.series[i] != np.inf and self.series[i + self.slen] != np.inf:
+                sum += float(self.series[i+self.slen] - self.series[i]) / self.slen
         return sum / self.slen
 
     def initial_seasonal_components(self):
-        seasonals = {}
+        seasonals = np.zeros(self.slen)
         season_averages = []
         n_seasons = int(len(self.series)/self.slen)
 
+        # print("n_seasons", n_seasons)
+        # print(self.series)
+        # print(type(self.series))
         # вычисляем сезонные средние
         for j in range(n_seasons):
-            season_averages.append(sum(self.series[self.slen*j:self.slen*j+self.slen])/float(self.slen))
-
+            s = 0
+            for i in range (self.slen*j,self.slen*j+self.slen):
+                # season_averages.append(sum(self.series[self.slen*j:self.slen*j+self.slen])/float(self.slen))
+                if self.series[i] != np.inf:
+                    s += self.series[i]
+            season_averages.append(s/self.slen)
         # вычисляем начальные значения
+        # print('slen', self.slen)
         for i in range(self.slen):
             sum_of_vals_over_avg = 0.0
+
             for j in range(n_seasons):
-                sum_of_vals_over_avg += self.series[self.slen*j+i]-season_averages[j]
-            seasonals[i] = sum_of_vals_over_avg/n_seasons
+                if self.series[self.slen * j + i] != np.inf:
+                    sum_of_vals_over_avg += self.series[self.slen * j + i] - season_averages[j]
+            seasonals[i] = sum_of_vals_over_avg / n_seasons
         return seasonals
 
     def triple_exponential_smoothing(self):
@@ -59,13 +70,14 @@ class HoltWinters:
         # print('seasonals', seasonals)
 
         for i in range(len(self.series)+self.n_preds):
+        # for i in range(len(self.series)+self.test_l):
             if i == 0: # инициализируем значения компонент
                 smooth = self.series[0]
                 trend = self.initial_trend()
                 self.result.append(self.series[0])
                 self.Smooth.append(smooth)
                 self.Trend.append(trend)
-                self.Season.append(seasonals[i%self.slen])
+                self.Season.append(seasonals[i % self.slen])
                 self.PredictedDeviation.append(0)
 
                 self.UpperBond.extend((self.result[0] +
@@ -88,31 +100,54 @@ class HoltWinters:
                 self.PredictedDeviation.append(self.PredictedDeviation[-1]*1.01)
 
             else:
-                # print('i<len series')
-                val = self.series[i]
-                last_smooth, smooth = smooth, self.alpha*(val-seasonals[i%self.slen]) + (1-self.alpha)*(smooth+trend)
-                # print('last smoth',last_smooth, 'smooth', smooth)
-                trend = self.beta * (smooth-last_smooth) + (1-self.beta)*trend
-                # print('trend', trend)
-                seasonals[i%self.slen] = self.gamma*(val-smooth) + (1-self.gamma)*seasonals[i%self.slen]
-                # print(self.gamma*(val-smooth) + (1-self.gamma)*seasonals[i%self.slen])
-                self.result.append(smooth+trend+seasonals[i%self.slen])
-                # print(smooth+trend+seasonals[i%self.slen])
-                # Отклонение рассчитывается в соответствии с алгоритмом Брутлага
-                self.PredictedDeviation.append(self.gamma * np.abs(self.series[i] - self.result[i])
-                                               + (1-self.gamma)*self.PredictedDeviation[-1])
+                if self.series[i] != np.inf:
+                    # print('i<len series')
+                    val = self.series[i]
+                    last_smooth, smooth = smooth, self.alpha*(val-seasonals[i%self.slen]) + (1-self.alpha)*(smooth+trend)
+                    # print('last smoth',last_smooth, 'smooth', smooth)
+                    trend = self.beta * (smooth-last_smooth) + (1-self.beta)*trend
+                    # print('trend', trend)
+                    seasonals[i % self.slen] = self.gamma * (val-smooth) + (1-self.gamma) * seasonals[i % self.slen]
+                    # print(seasonals)
+                    # print(self.gamma*(val-smooth) + (1-self.gamma)*seasonals[i%self.slen])
+                    self.result.extend(smooth+trend+seasonals[i%self.slen])
 
-            self.UpperBond.extend((self.result[-1] +
-                                  self.scaling_factor *
-                                  self.PredictedDeviation[-1]).tolist())
+                    # print('result append', smooth+trend+seasonals[i % self.slen])
+                    # Отклонение рассчитывается в соответствии с алгоритмом Брутлага
+                    self.PredictedDeviation.append(self.gamma * np.abs(val - self.result[i])
+                                                   + (1-self.gamma)*self.PredictedDeviation[-1])
 
-            self.LowerBond.extend((self.result[-1] -
-                                  self.scaling_factor *
-                                  self.PredictedDeviation[-1]).tolist())
+                    # print(self.result[-1])
+                    # print(self.PredictedDeviation[-1])
+                    # print(self.result[-1] +
+                    #                       self.scaling_factor *
+                    #                       self.PredictedDeviation[-1])
 
-            self.Smooth.append(smooth)
-            self.Trend.append(trend)
-            self.Season.append(seasonals[i % self.slen])
+                    self.UpperBond.append(self.result[-1] +
+                                          self.scaling_factor *
+                                          self.PredictedDeviation[-1])
+                    # exit()
+                    self.LowerBond.append(self.result[-1] -
+                                          self.scaling_factor *
+                                          self.PredictedDeviation[-1])
+
+                    self.Smooth.append(smooth)
+                    self.Trend.append(trend)
+                    self.Season.append(seasonals[i % self.slen])
+                else:
+                    pass
+                    # print("inf value!!!!!")
+                    # self.result.append(np.inf)
+                    # self.PredictedDeviation.append(np.inf)
+                    # self.UpperBond.append(np.inf)
+                    # self.LowerBond.append(np.inf)
+
         # for i in range(len(self.Smooth)):
         #     print(i, self.Smooth[i], self.Trend[i])
         # exit()
+        # print(self.LowerBond)
+        # print(self.UpperBond)
+        # print(self.PredictedDeviation)
+
+
+

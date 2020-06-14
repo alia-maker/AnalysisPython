@@ -1,2 +1,2 @@
-venv\scripts\python.exe fts.pyw
+venv\scripts\python.exe main.py
 pause
